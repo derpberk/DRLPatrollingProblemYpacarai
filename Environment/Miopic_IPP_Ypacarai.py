@@ -8,7 +8,7 @@ class DiscreteIPP(gym.Env):
 	environment_name = "Miopic Informative Path Planning"
 
 	def __init__(self, scenario_map, initial_position=None, battery_budget=100,
-	             detection_length=2, random_information=True, seed=0, num_of_kilometers=30):
+	             detection_length=2, random_information=True, seed=0, num_of_kilometers=30, attrition=0, recovery=0.01):
 
 		self.id = "Miopic Discrete Ypacarai"
 
@@ -23,6 +23,9 @@ class DiscreteIPP(gym.Env):
 		self.gt.reset()
 		self.fixed_gt = self.gt.read()
 		self.random_information = random_information
+		self.information_map = None
+		self.information_importance = None
+		self.visited_map = None
 
 		""" Action spaces for gym convenience """
 		self.action_space = gym.spaces.Discrete(8)
@@ -63,8 +66,8 @@ class DiscreteIPP(gym.Env):
 
 		self.max_num_of_movements = int(2 * (num_of_kilometers / 30) * self.map_size[0])  # About 30 km
 		self.battery_cost = 100 / self.max_num_of_movements
-		self.recovery_rate = 15 / self.max_num_of_movements
-		self.interest_permanent_loss_rate = 0.1  # [0,1]
+		self.recovery_rate = recovery
+		self.interest_permanent_loss_rate = attrition  # [0,1]
 
 		self.reset()
 
@@ -79,6 +82,7 @@ class DiscreteIPP(gym.Env):
 		self.done = False
 		self.next_state = None
 		self.step_count = 0
+		self.visited_map = None
 		self.state, self.reward = self.process_state_and_reward()
 
 		return self.state
@@ -102,46 +106,33 @@ class DiscreteIPP(gym.Env):
 		else:
 			self.information_map = np.copy(self.fixed_gt)
 
-		self.information_importance = np.copy(self.scenario_map)
+		self.information_importance = np.ones_like(self.scenario_map)
 
 	def render(self, img_type='None'):
 
 		plt.ion()
 
-		red = np.copy(self.state[2]) + (1 - self.scenario_map)
-		green = np.copy(self.state[3]) + (1 - self.scenario_map)
-		blue = np.copy(self.state[0]) + (1 - self.scenario_map)
-
-		rgb = np.stack((red, green, blue), axis=-1)
-
 		if self.fig is None:
 
-			self.fig, self.axs = plt.subplots(1, 5, figsize=(15, 3))
-			self.im1 = self.axs[0].imshow(blue, cmap='jet')
+			self.fig, self.axs = plt.subplots(1, 4, figsize=(15, 3))
+			self.im0 = self.axs[0].imshow(self.state[0], cmap='gray', vmin=0, vmax=1)
 			self.axs[0].set_title('Position')
-			self.im2 = self.axs[1].imshow(self.state[1], cmap='gray')
+			self.im1 = self.axs[1].imshow(self.state[1], cmap='gray', vmin=0, vmax=1)
 			self.axs[1].set_title('Navigation map')
-			self.im3 = self.axs[2].imshow(self.state[2], cmap='coolwarm')
+			self.im2 = self.axs[2].imshow(self.state[2], cmap='jet', vmin=0, vmax=1)
 			self.axs[2].set_title('Importance Map')
-			self.im4 = self.axs[3].imshow(self.state[3], cmap='gray')
-			self.axs[3].set_title('Coverage area')
-			self.im5 = self.axs[4].imshow(rgb)
-			self.axs[4].set_title('RGB image')
+			self.im3 = self.axs[3].imshow(self.state[3], cmap='jet', vmin=0, vmax=1)
+			self.axs[3].set_title('Temporal Map')
 
 		else:
 
-			self.im1.set_data(blue)
-			self.im2.set_data(self.state[1])
-			self.im3.set_data(self.state[2])
-			self.im4.set_data(self.state[3])
-			self.im5.set_data(rgb)
+			self.im0.set_data(self.state[0])
+			self.im1.set_data(self.state[1])
+			self.im2.set_data(self.state[2])
+			self.im3.set_data(self.state[3])
 
 		self.fig.canvas.draw()
 		self.fig.canvas.flush_events()
-
-		plt.pause(0.1)
-
-		return rgb
 
 	def step(self, desired_action):
 
@@ -164,9 +155,6 @@ class DiscreteIPP(gym.Env):
 
 		# Check the episodic end condition
 		self.done = self.battery <= self.battery_cost or not val
-
-		# Recover the idleness of the information #
-		self.information_importance = np.clip(self.information_importance + self.recovery_rate, 0, 1)
 
 		return self.state, self.reward, self.done, {}
 
@@ -200,8 +188,7 @@ class DiscreteIPP(gym.Env):
 
 		# State - position #
 
-		for n, pos in enumerate(self.trajectory):
-			state[0, pos[0], pos[1]] = n / len(self.trajectory)
+		state[0, self.position[0], self.position[1]] = 1.0
 
 		# State - boundaries #
 		state[1] = np.copy(self.scenario_map)
@@ -216,21 +203,30 @@ class DiscreteIPP(gym.Env):
 		r = self.detection_length
 
 		mask = (x[np.newaxis, :] - cx) ** 2 + (y[:, np.newaxis] - cy) ** 2 < r ** 2
-		state[3, mask] = 1
+		mask = mask.astype(float)
+
+		if self.visited_map is None:
+			self.visited_map = np.copy(mask)
+		else:
+			self.visited_map = np.clip(self.visited_map + mask,0,1)
 
 		# Reward function #
 
-		reward = self.reward_function(collision_free=valid, coverage_area=state[3])
+		reward = self.reward_function(collision_free=valid, coverage_area=mask)
 
 		# Update the information map
-
 		# Redraw the importance in the covered area #
-		self.information_importance = np.clip(self.information_importance - state[3] * self.information_importance, 0,1)
-		# The information map is decreased with the attrition factor
-		self.information_map = np.clip(self.information_map - state[3] * self.interest_permanent_loss_rate, 0, 1)
+		self.information_importance = np.clip(self.information_importance - mask * self.information_importance, 0,1)
 
-		# State - Relative Importance map #
-		state[2] = state[3] * self.information_map * self.information_importance
+		# The information map is decreased with the attrition factor
+		self.information_map = np.clip(self.information_map - mask * self.interest_permanent_loss_rate, 0, 1)
+
+		# State - Temporal Importance map and scenario #
+		state[2] = self.visited_map * self.information_map
+		state[3] = (1 - self.information_importance) * self.scenario_map
+
+		# Recover the idleness of the information #
+		self.information_importance = np.clip(self.information_importance + self.recovery_rate, 0, 1)
 
 		return state, reward
 
@@ -290,7 +286,7 @@ if __name__ == "__main__":
 
 	my_map = np.genfromtxt('../Environment/example_map.csv', delimiter=',')
 	env = DiscreteIPP(scenario_map=my_map,
-	                  detection_length=2,
+	                  detection_length=5,
 	                  initial_position=np.array([26, 21]),
 	                  seed=1,
 	                  random_information=False,
@@ -312,6 +308,7 @@ if __name__ == "__main__":
 		s, r, d, _ = env.step(a)
 
 		env.render()
+		plt.pause(0.1)
 
 		total_r += r
 
