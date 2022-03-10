@@ -64,7 +64,7 @@ class DiscreteIPP(gym.Env):
         self.max_num_of_movements = int(2*(num_of_kilometers/30)*self.map_size[0]) # About 30 km
         self.battery_cost = 100/self.max_num_of_movements
         self.recovery_rate = 15/self.max_num_of_movements
-        self.interest_permanent_loss_rate = 0.1 # [0,1]
+        self.interest_permanent_loss_rate = 0 # [0,1]
 
         self.reset()
 
@@ -275,10 +275,11 @@ if __name__ == "__main__":
 
     my_map = np.genfromtxt('../Environment/example_map.csv', delimiter=',')
     env = DiscreteIPP(scenario_map=my_map,
+                      number_of_collitions_before_ending_episode = 10,
                       detection_length=2,
                       initial_position=np.array([26, 21]),
                       seed=1,
-                      random_information=False,
+                      random_information=True,
                       num_of_kilometers = 120)
 
     s = env.reset()
@@ -290,11 +291,8 @@ if __name__ == "__main__":
     while not env.done:
 
 
-        valid = False
-        while not valid:
+        a = np.random.randint(0, 8)
 
-            a = np.random.randint(0, 8)
-            valid, _ = env.check_action(a)
 
         s, r, d, _ = env.step(a)
 
