@@ -275,7 +275,6 @@ if __name__ == "__main__":
 
     my_map = np.genfromtxt('../Environment/example_map.csv', delimiter=',')
     env = DiscreteIPP(scenario_map=my_map,
-                      number_of_collitions_before_ending_episode = 10,
                       detection_length=2,
                       initial_position=np.array([26, 21]),
                       seed=1,
