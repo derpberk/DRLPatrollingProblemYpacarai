@@ -3,13 +3,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Environment.groundtruthgenerator import GroundTruth
 
+
 class DiscreteIPP(gym.Env):
-
     environment_name = "Discrete Informative Path Planning"
-    
-    def __init__(self, scenario_map, initial_position=None, battery_budget=100,
-                 detection_length = 2, random_information=True, seed = 0, num_of_kilometers = 30):
 
+    def __init__(self, scenario_map, initial_position=None, battery_budget=100,
+                 detection_length=2, random_information=True, seed=0, num_of_kilometers=30, allowed_collisions=10):
 
         self.id = "Discrete Ypacarai"
 
@@ -20,7 +19,7 @@ class DiscreteIPP(gym.Env):
         self.posibles = np.asarray(np.nonzero(self.scenario_map)).T
 
         """ Generate ground truth based on the Shekel function """
-        self.gt = GroundTruth(grid = 1-scenario_map, resolution=1, max_number_of_peaks=4, is_bounded=True, seed=seed)
+        self.gt = GroundTruth(grid=1 - scenario_map, resolution=1, max_number_of_peaks=4, is_bounded=True, seed=seed)
         self.gt.reset()
         self.fixed_gt = self.gt.read()
         self.random_information = random_information
@@ -30,7 +29,8 @@ class DiscreteIPP(gym.Env):
         self.action_size = 8
 
         """ Observation_space """
-        self.observation_space = gym.spaces.Box(0.0, 1.0, shape=(4, self.map_size[0], self.map_size[1]), dtype=np.float32)
+        self.observation_space = gym.spaces.Box(0.0, 1.0, shape=(4, self.map_size[0], self.map_size[1]),
+                                                dtype=np.float32)
 
         self.detection_length = detection_length
 
@@ -61,13 +61,16 @@ class DiscreteIPP(gym.Env):
         # Battery budget
         self.battery = battery_budget
 
-        self.max_num_of_movements = int(2*(num_of_kilometers/30)*self.map_size[0]) # About 30 km
-        self.battery_cost = 100/self.max_num_of_movements
-        self.recovery_rate = 15/self.max_num_of_movements
-        self.interest_permanent_loss_rate = 0 # [0,1]
+        self.max_num_of_movements = int(2 * (num_of_kilometers / 30) * self.map_size[0])  # About 30 km
+        self.battery_cost = 100 / self.max_num_of_movements
+        self.recovery_rate = 15 / self.max_num_of_movements
+        self.interest_permanent_loss_rate = 0  # [0,1]
+
+        # Number of allowed collisions before ending an episode
+        self.num_of_allowed_collisions = allowed_collisions
+        self.num_of_collisions = 0
 
         self.reset()
-
 
     def reset(self):
 
@@ -75,6 +78,7 @@ class DiscreteIPP(gym.Env):
 
         self.place_information()
 
+        self.num_of_collisions = 0
         self.battery = 100
         self.reward = None
         self.done = False
@@ -105,7 +109,7 @@ class DiscreteIPP(gym.Env):
 
         self.information_importance = np.copy(self.scenario_map)
 
-    def render(self, img_type = 'None'):
+    def render(self, img_type='None'):
 
         plt.ion()
 
@@ -125,11 +129,10 @@ class DiscreteIPP(gym.Env):
             self.im1.set_data(self.state[1])
             self.im2.set_data(self.state[2])
 
-
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-    def step(self, desired_action):
+    def step(self, desired_action, collisions_allowed=False):
 
         self.step_count += 1
 
@@ -140,6 +143,9 @@ class DiscreteIPP(gym.Env):
             # IF valid, update the position
             self.position = new_position
             self.trajectory = np.row_stack((self.trajectory, self.position))
+        elif collisions_allowed:
+            self.num_of_collisions += 1
+            # print(desired_action, self.num_of_collisions, self.step_count)
 
         # Process state and reward #
 
@@ -148,8 +154,13 @@ class DiscreteIPP(gym.Env):
         # Compute the battery consumption #
         self.battery -= self.battery_cost if desired_action < 4 else 1.4142 * self.battery_cost
 
+        if collisions_allowed:
+            done_due_to_collisions = self.num_of_collisions >= self.num_of_allowed_collisions
+        else:
+            done_due_to_collisions = not val  # if we are not allowed to collision
+
         # Check the episodic end condition
-        self.done = self.battery <= self.battery_cost or not val
+        self.done = self.battery <= self.battery_cost or done_due_to_collisions
 
         return self.state, self.reward, self.done, {}
 
@@ -160,7 +171,7 @@ class DiscreteIPP(gym.Env):
 
         attempted_position = self.position + v
 
-        if self.scenario_map[attempted_position[0],attempted_position[1]] == 1:
+        if self.scenario_map[attempted_position[0], attempted_position[1]] == 1:
             valid = True
         else:
             valid = False
@@ -170,8 +181,8 @@ class DiscreteIPP(gym.Env):
     def reward_function(self, collision_free, coverage_area):
 
         if collision_free:
-            sum_of_information = np.sum(coverage_area*self.information_map*self.information_importance)
-            reward = sum_of_information/(self.detection_length ** 2 * np.pi)
+            sum_of_information = np.sum(coverage_area * self.information_map * self.information_importance)
+            reward = sum_of_information / (self.detection_length ** 2 * np.pi)
         else:
             reward = -self.collision_penalization
 
@@ -255,8 +266,79 @@ class DiscreteIPP(gym.Env):
 
         return R,
 
-if __name__ == "__main__":
+    def random_agent(self, num_of_episodes, allowed_collisions=None):
 
+        """ Reset the environment """
+        self.reset()
+        total_rew = 0
+        rewards_by_episode = []
+
+        if allowed_collisions is not None:  # we can change the number of allowed collisions also in this method
+            self.num_of_allowed_collisions = allowed_collisions
+
+        for episode in range(num_of_episodes):
+            self.reset()
+            while not self.done:
+                a_ = np.random.randint(0, 7)
+
+                s_, r_, d_, _ = env.step(a_,True)
+                total_rew += r_
+                env.render()
+                plt.pause(0.1)
+
+            rewards_by_episode.append(total_rew/self.num_of_allowed_collisions)
+            total_rew = 0
+
+        return rewards_by_episode
+
+def EMA_filter(values, Alpha = 0.6):
+    filtered_values = []
+    last_value = values[0]
+    for value in values:
+        filtered_values.append(Alpha*value + (1 - Alpha)*last_value)
+        last_value = value
+
+    return filtered_values
+
+def mean_filter(values, window = 5):
+
+    filtered_values = []
+    for i in range(len(values)):
+        ind = i + 1
+        if ind < window:  # if we have not filled the window yet
+            filtered_values.append(sum(values[:ind])/ind)
+        else:
+            filtered_values.append(sum(values[(ind-window):ind])/window)
+
+    return filtered_values
+
+
+def median(dataset):
+    data = sorted(dataset)
+    index = len(data) // 2
+
+    # If the dataset is odd
+    if len(dataset) % 2 != 0:
+        return data[index]
+
+    # If the dataset is even
+    return (data[index - 1] + data[index]) / 2
+
+
+def median_filter(values, window = 5):
+
+    filtered_values = []
+    for i in range(len(values)):
+        ind = i + 1
+        if ind < window:  # if we have not filled the window yet
+            filtered_values.append(median(values[:ind]))
+        else:
+            filtered_values.append(median(values[(ind-window):ind]))
+
+    return filtered_values
+
+
+if __name__ == "__main__":
     """ Ejemplo de uso del escenario"""
 
     """ Se carga el escenario."""
@@ -271,18 +353,45 @@ if __name__ == "__main__":
          
         """
 
-
-
     my_map = np.genfromtxt('../Environment/example_map.csv', delimiter=',')
     env = DiscreteIPP(scenario_map=my_map,
                       detection_length=2,
                       initial_position=np.array([26, 21]),
                       seed=1,
                       random_information=True,
-                      num_of_kilometers = 120)
+                      num_of_kilometers=120,
+                      allowed_collisions=15)
 
     s = env.reset()
+    Random_agent_mean_rewards = env.random_agent(20, 8)
+    np.savetxt('Random_agent_mean_rewards.csv', Random_agent_mean_rewards, delimiter= ' ')
 
+    Random_agent_mean_rewards = np.genfromtxt('Random_agent_mean_rewards.csv')
+    Random_agent_mean_rewards2 = EMA_filter(Random_agent_mean_rewards, 0.4)
+    Random_agent_mean_rewards3 = median_filter(Random_agent_mean_rewards, 6)
+    Random_agent_mean_rewards4 = mean_filter(Random_agent_mean_rewards, 6)
+
+    plt.figure(1)
+    plt.plot(Random_agent_mean_rewards)
+    plt.plot(Random_agent_mean_rewards2)
+    plt.title("Rewards filtered with the EMA filter")
+    plt.legend(['Without filter', 'Filtered'])
+
+    plt.figure(2)
+    plt.plot(Random_agent_mean_rewards)
+    plt.plot(Random_agent_mean_rewards3)
+    plt.title("Rewards filtered with the median filter")
+    plt.legend(['Without filter', 'Filtered'])
+
+    plt.figure(3)
+    plt.plot(Random_agent_mean_rewards)
+    plt.plot(Random_agent_mean_rewards4)
+    plt.title("Rewards filtered with the mean filter")
+    plt.legend(['Without filter', 'Filtered'])
+
+    plt.show(block=True)
+    # plt.interactive(False)
+    """
     total_r = 0
     t = 0
     R_vec = [total_r]
@@ -307,18 +416,4 @@ if __name__ == "__main__":
 
     print('Recompensa', total_r, 'Timesteps ', t)
 
-
-
-
-
-
-
-    
-
-
-
-
-
-
-
-
+"""
