@@ -4,8 +4,8 @@ import numpy as np
 import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-from ReplayBuffers.ReplayBuffers import PrioritizedReplayBuffer, ReplayBuffer
-from Networks.network import DuelingVisualNetwork, NoisyDuelingVisualNetwork
+from DeepAgent.ReplayBuffers.ReplayBuffers import PrioritizedReplayBuffer, ReplayBuffer
+from DeepAgent.Networks.network import DuelingVisualNetwork, NoisyDuelingVisualNetwork
 import torch.nn.functional as F
 
 
@@ -306,6 +306,8 @@ class DuelingDQNAgent:
 
 		# Save the final policy #
 		self.save_model(name='FINALPolicy.pth')
+
+		return losses, episodic_reward_vector  # NUEVO
 
 	def _compute_dqn_loss(self, samples: Dict[str, np.ndarray]) -> torch.Tensor:
 

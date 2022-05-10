@@ -2,13 +2,15 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 from Environment.groundtruthgenerator import GroundTruth
+from Environment.utils import custom_filters
 
 
 class DiscreteIPP(gym.Env):
     environment_name = "Discrete Informative Path Planning"
 
     def __init__(self, scenario_map, initial_position=None, battery_budget=100,
-                 detection_length=2, random_information=True, seed=0, num_of_kilometers=30, allowed_collisions=10):
+                 detection_length=2, random_information=True, seed=0, num_of_kilometers=30,
+                 collisions_allowed=False, num_of_allowed_collisions=10):
 
         self.id = "Discrete Ypacarai"
 
@@ -29,8 +31,8 @@ class DiscreteIPP(gym.Env):
         self.action_size = 8
 
         """ Observation_space """
-        self.observation_space = gym.spaces.Box(0.0, 1.0, shape=(4, self.map_size[0], self.map_size[1]),
-                                                dtype=np.float32)
+        self.observation_space = gym.spaces.Box(0.0, 1.0, shape=(3, self.map_size[0], self.map_size[1]),
+                                                dtype=np.float32) # IMPORTANTE: shape antes era (4, self....
 
         self.detection_length = detection_length
 
@@ -67,8 +69,9 @@ class DiscreteIPP(gym.Env):
         self.interest_permanent_loss_rate = 0  # [0,1]
 
         # Number of allowed collisions before ending an episode
-        self.num_of_allowed_collisions = allowed_collisions
+        self.num_of_allowed_collisions = num_of_allowed_collisions
         self.num_of_collisions = 0
+        self.collisions_allowed = collisions_allowed
 
         self.reset()
 
@@ -132,7 +135,7 @@ class DiscreteIPP(gym.Env):
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
 
-    def step(self, desired_action, collisions_allowed=False):
+    def step(self, desired_action):
 
         self.step_count += 1
 
@@ -143,7 +146,7 @@ class DiscreteIPP(gym.Env):
             # IF valid, update the position
             self.position = new_position
             self.trajectory = np.row_stack((self.trajectory, self.position))
-        elif collisions_allowed:
+        elif self.collisions_allowed:
             self.num_of_collisions += 1
             # print(desired_action, self.num_of_collisions, self.step_count)
 
@@ -154,7 +157,7 @@ class DiscreteIPP(gym.Env):
         # Compute the battery consumption #
         self.battery -= self.battery_cost if desired_action < 4 else 1.4142 * self.battery_cost
 
-        if collisions_allowed:
+        if self.collisions_allowed:
             done_due_to_collisions = self.num_of_collisions >= self.num_of_allowed_collisions
         else:
             done_due_to_collisions = not val  # if we are not allowed to collision
@@ -281,61 +284,17 @@ class DiscreteIPP(gym.Env):
             while not self.done:
                 a_ = np.random.randint(0, 7)
 
-                s_, r_, d_, _ = env.step(a_,True)
+                s_, r_, d_, _ = env.step(a_)
                 total_rew += r_
                 env.render()
                 plt.pause(0.1)
 
-            rewards_by_episode.append(total_rew/self.num_of_allowed_collisions)
+            rewards_by_episode.append(total_rew)
             total_rew = 0
 
         return rewards_by_episode
 
-def EMA_filter(values, Alpha = 0.6):
-    filtered_values = []
-    last_value = values[0]
-    for value in values:
-        filtered_values.append(Alpha*value + (1 - Alpha)*last_value)
-        last_value = value
 
-    return filtered_values
-
-def mean_filter(values, window = 5):
-
-    filtered_values = []
-    for i in range(len(values)):
-        ind = i + 1
-        if ind < window:  # if we have not filled the window yet
-            filtered_values.append(sum(values[:ind])/ind)
-        else:
-            filtered_values.append(sum(values[(ind-window):ind])/window)
-
-    return filtered_values
-
-
-def median(dataset):
-    data = sorted(dataset)
-    index = len(data) // 2
-
-    # If the dataset is odd
-    if len(dataset) % 2 != 0:
-        return data[index]
-
-    # If the dataset is even
-    return (data[index - 1] + data[index]) / 2
-
-
-def median_filter(values, window = 5):
-
-    filtered_values = []
-    for i in range(len(values)):
-        ind = i + 1
-        if ind < window:  # if we have not filled the window yet
-            filtered_values.append(median(values[:ind]))
-        else:
-            filtered_values.append(median(values[(ind-window):ind]))
-
-    return filtered_values
 
 
 if __name__ == "__main__":
@@ -360,16 +319,18 @@ if __name__ == "__main__":
                       seed=1,
                       random_information=True,
                       num_of_kilometers=120,
-                      allowed_collisions=15)
+                      collisions_allowed=True,
+                      num_of_allowed_collisions=8)
 
     s = env.reset()
     Random_agent_mean_rewards = env.random_agent(20, 8)
     np.savetxt('Random_agent_mean_rewards.csv', Random_agent_mean_rewards, delimiter= ' ')
 
+    c_filters = custom_filters()
     Random_agent_mean_rewards = np.genfromtxt('Random_agent_mean_rewards.csv')
-    Random_agent_mean_rewards2 = EMA_filter(Random_agent_mean_rewards, 0.4)
-    Random_agent_mean_rewards3 = median_filter(Random_agent_mean_rewards, 6)
-    Random_agent_mean_rewards4 = mean_filter(Random_agent_mean_rewards, 6)
+    Random_agent_mean_rewards2 = c_filters.EMA_filter(Random_agent_mean_rewards, 0.4)
+    Random_agent_mean_rewards3 = c_filters.median_filter(Random_agent_mean_rewards, 6)
+    Random_agent_mean_rewards4 = c_filters.mean_filter(Random_agent_mean_rewards, 6)
 
     plt.figure(1)
     plt.plot(Random_agent_mean_rewards)

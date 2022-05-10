@@ -1,4 +1,5 @@
 from Environment.Soft_IPP_Ypacarai import DiscreteIPP
+from DeepAgent.Agent.DuelingDQNAgent import DuelingDQNAgent
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -13,6 +14,23 @@ env = DiscreteIPP(scenario_map=navigation_map, initial_position=np.array([26, 21
 env.reset()
 done = False
 
+# Create the environment #
+
+batch_size = 32
+experience_replay_size = 10000
+target_update = 1000
+
+Agent = DuelingDQNAgent(env, experience_replay_size, batch_size, target_update)
+
+num_of_episodes=100
+losses, episodic_reward_vector = Agent.train(num_of_episodes)
+plt.figure(1)
+plt.plot(losses)
+plt.figure(2)
+plt.plot(episodic_reward_vector)
+plt.show(block=True)
+print('done')
+"""
 # Choose a valid action #
 action = env.action_space.sample()
 while not env.check_action(action):
@@ -30,3 +48,4 @@ while not done:
 
     env.render()
     plt.pause(0.1)
+"""

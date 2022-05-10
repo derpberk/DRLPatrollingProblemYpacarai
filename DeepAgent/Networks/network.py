@@ -1,8 +1,8 @@
-from NoisyLayers.layers import NoisyLinear
+from DeepAgent.NoisyLayers.layers import NoisyLinear
 import torch
 from torch import nn
 import torch.nn.functional as F
-from Networks.FeatureExtractors import FeatureExtractor
+from DeepAgent.Networks.FeatureExtractors import FeatureExtractor
 
 
 class Network(nn.Module):
