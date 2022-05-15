@@ -8,7 +8,8 @@ class DiscreteIPP(gym.Env):
 	environment_name = "Miopic Informative Path Planning"
 
 	def __init__(self, scenario_map, initial_position=None, battery_budget=100,
-	             detection_length=2, random_information=True, seed=0, num_of_kilometers=30, attrition=0, recovery=0.01):
+	             detection_length=2, random_information=True, seed=0, num_of_kilometers=30, attrition=0, recovery=0.01,
+				 collisions_allowed = False, num_of_allowed_collisions = 10):
 
 		self.id = "Miopic Discrete Ypacarai"
 
@@ -26,6 +27,9 @@ class DiscreteIPP(gym.Env):
 		self.information_map = None
 		self.information_importance = None
 		self.visited_map = None
+		self.idleness_mean = None  # the average idleness value of each box
+		self.percentage_visited = None  # percentage of the map visited
+
 
 		""" Action spaces for gym convenience """
 		self.action_space = gym.spaces.Discrete(8)
@@ -68,6 +72,11 @@ class DiscreteIPP(gym.Env):
 		self.battery_cost = 100 / self.max_num_of_movements
 		self.recovery_rate = recovery
 		self.interest_permanent_loss_rate = attrition  # [0,1]
+
+		# Number of allowed collisions before ending an episode
+		self.num_of_allowed_collisions = num_of_allowed_collisions
+		self.num_of_collisions = 0
+		self.collisions_allowed = collisions_allowed
 
 		self.reset()
 
@@ -145,6 +154,9 @@ class DiscreteIPP(gym.Env):
 			# IF valid, update the position
 			self.position = new_position
 			self.trajectory = np.row_stack((self.trajectory, self.position))
+		elif self.collisions_allowed:
+			self.num_of_collisions += 1
+		# print(desired_action, self.num_of_collisions, self.step_count)
 
 		# Process state and reward #
 
@@ -153,8 +165,13 @@ class DiscreteIPP(gym.Env):
 		# Compute the battery consumption #
 		self.battery -= self.battery_cost if desired_action < 4 else 1.4142 * self.battery_cost
 
+		if self.collisions_allowed:
+			done_due_to_collisions = self.num_of_collisions >= self.num_of_allowed_collisions
+		else:
+			done_due_to_collisions = not val  # if we are not allowed to collision
+
 		# Check the episodic end condition
-		self.done = self.battery <= self.battery_cost or not val
+		self.done = self.battery <= self.battery_cost or done_due_to_collisions
 
 		return self.state, self.reward, self.done, {}
 
@@ -228,6 +245,10 @@ class DiscreteIPP(gym.Env):
 		# Recover the idleness of the information #
 		self.information_importance = np.clip(self.information_importance + self.recovery_rate, 0, 1)
 
+		self.idleness_mean = np.sum(state[2]) / np.count_nonzero(self.scenario_map)
+		self.percentage_visited = np.count_nonzero(self.visited_map) / np.count_nonzero(self.scenario_map)
+		# print(self.percentage_visited, self.idleness_mean)
+
 		return state, reward
 
 	@staticmethod
@@ -266,6 +287,57 @@ class DiscreteIPP(gym.Env):
 				break
 
 		return R,
+
+	def random_agent(self, num_of_episodes, allowed_collisions=None):
+		""" Reset the environment """
+		self.reset()
+		total_rew = 0
+		rewards_by_episode = []
+
+		if allowed_collisions is not None:  # we can change the number of allowed collisions also in this method
+			self.num_of_allowed_collisions = allowed_collisions
+
+		for episode in range(num_of_episodes):
+			self.reset()
+			while not self.done:
+				a_ = np.random.randint(0, 7)
+
+				s_, r_, d_, _ = env.step(a_)
+				total_rew += r_
+				self.render()
+				self.show_trajectory()
+				plt.pause(0.1)
+
+			rewards_by_episode.append(total_rew)
+			total_rew = 0
+
+		return rewards_by_episode
+
+	def show_trajectory(self):
+		plt.ion()
+
+		if self.fig_trajectory is None:
+			self.fig_trajectory = plt.figure()
+			self.im_traj = np.copy(self.scenario_map)
+			self.im_traj[self.trajectory[-1, 0], self.trajectory[-1, 1]] = 0.6
+			self.im0_trajectory = plt.imshow(self.im_traj, cmap='jet', vmin=0, vmax=1)
+			self.im_traj[self.trajectory[-1, 0], self.trajectory[-1, 1]] = 0.3
+			plt.title('Trajectory')
+		else:
+			# self.im_traj[self.position[0], self.position[1]] = 0.6
+			self.im_traj[self.trajectory[-1, 0], self.trajectory[-1, 1]] = 0.6
+			self.im0_trajectory.set_data(self.im_traj)
+			self.im_traj[self.trajectory[-1, 0], self.trajectory[-1, 1]] = 0.3
+
+		im_traj_copy = self.im_traj
+
+		if self.done:
+			self.im_traj = np.copy(self.scenario_map)
+
+		self.fig_trajectory.canvas.draw()
+		self.fig_trajectory.canvas.flush_events()
+
+		return im_traj_copy
 
 
 if __name__ == "__main__":

@@ -2,7 +2,7 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 from Environment.groundtruthgenerator import GroundTruth
-from Environment.utils import custom_filters
+from Environment.utils import custom_filters, plot_trajectory
 
 
 class DiscreteIPP(gym.Env):
@@ -25,6 +25,11 @@ class DiscreteIPP(gym.Env):
         self.gt.reset()
         self.fixed_gt = self.gt.read()
         self.random_information = random_information
+        self.information_map = None
+        self.information_importance = None
+        self.visited_map = None
+        self.idleness_mean = None  # the average idleness value of each box
+        self.percentage_visited = None  # percentage of the map visited
 
         """ Action spaces for gym convenience """
         self.action_space = gym.spaces.Discrete(8)
@@ -51,6 +56,9 @@ class DiscreteIPP(gym.Env):
 
         self.fig = None
         self.axs = None
+        self.fig_trajectory = None
+        self.im0_trajectory = None
+        self.im_traj = None
 
         # Initialization of the random map information information #
 
@@ -87,6 +95,7 @@ class DiscreteIPP(gym.Env):
         self.done = False
         self.next_state = None
         self.step_count = 0
+        self.visited_map = None
         self.state, self.reward = self.process_state_and_reward()
 
         return self.state
@@ -212,6 +221,12 @@ class DiscreteIPP(gym.Env):
         r = self.detection_length
 
         mask = (x[np.newaxis, :] - cx) ** 2 + (y[:, np.newaxis] - cy) ** 2 < r ** 2
+        mask = mask.astype(float)
+
+        if self.visited_map is None:
+            self.visited_map = np.copy(mask)
+        else:
+            self.visited_map = np.clip(self.visited_map + mask, 0, 1)
 
         # Reward function #
 
@@ -229,6 +244,10 @@ class DiscreteIPP(gym.Env):
 
         # Recover the idleness of the information #
         self.information_importance = np.clip(self.information_importance + self.recovery_rate, 0, 1)
+
+        self.idleness_mean = np.sum(state[2])/np.count_nonzero(self.scenario_map)
+        self.percentage_visited = np.count_nonzero(self.visited_map)/np.count_nonzero(self.scenario_map)
+        # print('Soft_Ypacarai', self.percentage_visited, self.idleness_mean)
 
         return state, reward
 
@@ -275,6 +294,7 @@ class DiscreteIPP(gym.Env):
         self.reset()
         total_rew = 0
         rewards_by_episode = []
+        fig1, ax1 = plt.subplots()
 
         if allowed_collisions is not None:  # we can change the number of allowed collisions also in this method
             self.num_of_allowed_collisions = allowed_collisions
@@ -286,15 +306,43 @@ class DiscreteIPP(gym.Env):
 
                 s_, r_, d_, _ = env.step(a_)
                 total_rew += r_
-                env.render()
+                self.render()
+                self.show_trajectory()
                 plt.pause(0.1)
 
             rewards_by_episode.append(total_rew)
             total_rew = 0
 
+            plot_trajectory(ax1, self.trajectory[:, 0], self.trajectory[:, 1], num_of_points = 100, plot_waypoints=True)
+
         return rewards_by_episode
 
+    def show_trajectory(self):
 
+        plt.ion()
+
+        if self.fig_trajectory is None:
+            self.fig_trajectory = plt.figure()
+            self.im_traj = np.copy(self.scenario_map)
+            self.im_traj[self.trajectory[-1, 0], self.trajectory[-1, 1]] = 0.6
+            self.im0_trajectory = plt.imshow(self.im_traj, cmap='jet', vmin=0, vmax=1)
+            self.im_traj[self.trajectory[-1, 0], self.trajectory[-1, 1]] = 0.3
+            plt.title('Trajectory')
+        else:
+            # self.im_traj[self.position[0], self.position[1]] = 0.6
+            self.im_traj[self.trajectory[-1, 0], self.trajectory[-1, 1]] = 0.6
+            self.im0_trajectory.set_data(self.im_traj)
+            self.im_traj[self.trajectory[-1, 0], self.trajectory[-1, 1]] = 0.3
+
+        im_traj_copy = self.im_traj
+
+        if self.done:
+            self.im_traj = np.copy(self.scenario_map)
+
+        self.fig_trajectory.canvas.draw()
+        self.fig_trajectory.canvas.flush_events()
+
+        return im_traj_copy
 
 
 if __name__ == "__main__":
@@ -323,9 +371,12 @@ if __name__ == "__main__":
                       num_of_allowed_collisions=8)
 
     s = env.reset()
-    Random_agent_mean_rewards = env.random_agent(20, 8)
+    Random_agent_mean_rewards = env.random_agent(6, 1)
     np.savetxt('Random_agent_mean_rewards.csv', Random_agent_mean_rewards, delimiter= ' ')
-
+    plt.figure()
+    plt.plot(env.trajectory[:, 0], env.trajectory[:, 1])
+    plt.show(block=True)
+"""
     c_filters = custom_filters()
     Random_agent_mean_rewards = np.genfromtxt('Random_agent_mean_rewards.csv')
     Random_agent_mean_rewards2 = c_filters.EMA_filter(Random_agent_mean_rewards, 0.4)
@@ -353,6 +404,7 @@ if __name__ == "__main__":
     plt.show(block=True)
     # plt.interactive(False)
     """
+"""
     total_r = 0
     t = 0
     R_vec = [total_r]

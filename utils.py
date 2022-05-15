@@ -68,7 +68,7 @@ def plot_trajectory(ax, x, y, z=None, colormap = 'jet', num_of_points = None, li
         if plot_waypoints:
             ax.plot(x,y,'.', color = 'black', markersize = markersize)
     else:
-        tck,u =interpolate.splprep([x,y,z],s=0.0)
+        tck,u = interpolate.splprep([x,y,z],s=0.0)
         x_i,y_i,z_i= interpolate.splev(np.linspace(0,1,num_of_points), tck)
         points = np.array([x_i,y_i,z_i]).T.reshape(-1,1,3)
         segments = np.concatenate([points[:-2], points[1:-1], points[2:]], axis=1)
@@ -79,4 +79,4 @@ def plot_trajectory(ax, x, y, z=None, colormap = 'jet', num_of_points = None, li
         if plot_waypoints:
             ax.plot(x,y,'kx')
 
-
+    ax.plot()

@@ -227,7 +227,7 @@ class DuelingDQNAgent:
 			score = 0
 			length = 0
 			losses = []
-
+			print(episode)
 			# Initially sample noisy policy #
 			if self.noisy:
 				self.dqn.reset_noise()
@@ -353,6 +353,12 @@ class DuelingDQNAgent:
 
 		if self.prioritized_replay:
 			self.writer.add_scalar('train/beta', self.beta, self.episode)
+
+		if self.env.percentage_visited:
+			self.writer.add_scalar('train/percentage_visited', self.env.percentage_visited, self.episode)
+
+		if self.env.idleness_mean:
+			self.writer.add_scalar('train/idleness_mean', self.env.idleness_mean, self.episode)
 
 		self.writer.add_scalar('train/accumulated_reward', self.episodic_reward, self.episode)
 		self.writer.add_scalar('train/accumulated_length', self.episodic_length, self.episode)

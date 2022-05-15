@@ -1,4 +1,5 @@
-from Environment.Soft_IPP_Ypacarai import DiscreteIPP
+from Environment.Soft_IPP_Ypacarai import DiscreteIPP as Soft_IPP
+from Environment.Miopic_IPP_Ypacarai import DiscreteIPP as Miopic_IPP
 from DeepAgent.Agent.DuelingDQNAgent import DuelingDQNAgent
 import numpy as np
 import matplotlib.pyplot as plt
@@ -7,7 +8,10 @@ import matplotlib.pyplot as plt
 navigation_map = np.genfromtxt('Environment/example_map.csv', delimiter=',')
 
 # Create the environment #
-env = DiscreteIPP(scenario_map=navigation_map, initial_position=np.array([26, 21]), battery_budget=100,
+env = Soft_IPP(scenario_map=navigation_map, initial_position=np.array([26, 21]), battery_budget=100,
+                  detection_length=2, random_information=True, seed=1, num_of_kilometers=100)
+
+env_miopic = Miopic_IPP(scenario_map=navigation_map, initial_position=np.array([26, 21]), battery_budget=100,
                   detection_length=2, random_information=True, seed=1, num_of_kilometers=100)
 
 # Reset the environment
@@ -22,7 +26,7 @@ target_update = 1000
 
 Agent = DuelingDQNAgent(env, experience_replay_size, batch_size, target_update)
 
-num_of_episodes=100
+num_of_episodes = 15000
 losses, episodic_reward_vector = Agent.train(num_of_episodes)
 plt.figure(1)
 plt.plot(losses)
