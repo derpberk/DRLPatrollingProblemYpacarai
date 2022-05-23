@@ -10,7 +10,7 @@ class DiscreteIPP(gym.Env):
 
     def __init__(self, scenario_map, initial_position=None, battery_budget=100,
                  detection_length=2, random_information=True, seed=0, num_of_kilometers=30,
-                 collisions_allowed=False, num_of_allowed_collisions=10):
+                 collisions_allowed=False, num_of_allowed_collisions=10, attrition=0, recovery=0.01):
 
         self.id = "Discrete Ypacarai"
 
@@ -73,8 +73,8 @@ class DiscreteIPP(gym.Env):
 
         self.max_num_of_movements = int(2 * (num_of_kilometers / 30) * self.map_size[0])  # About 30 km
         self.battery_cost = 100 / self.max_num_of_movements
-        self.recovery_rate = 15 / self.max_num_of_movements
-        self.interest_permanent_loss_rate = 0  # [0,1]
+        self.recovery_rate = recovery
+        self.interest_permanent_loss_rate = attrition
 
         # Number of allowed collisions before ending an episode
         self.num_of_allowed_collisions = num_of_allowed_collisions
@@ -237,7 +237,7 @@ class DiscreteIPP(gym.Env):
         # Redraw the importance in the covered area #
         self.information_importance = np.clip(self.information_importance - mask * self.information_importance, 0, 1)
         # The information map is decreased with the attrition factor
-        self.information_map = np.clip(self.information_map - mask * self.interest_permanent_loss_rate, 0, 1)
+        self.information_map = np.clip(self.information_map - mask * self.interest_permanent_loss_rate * self.gt.read(), 0, 1)
 
         # State - Relative Importance map #
         state[2] = self.information_map * self.information_importance
@@ -294,7 +294,7 @@ class DiscreteIPP(gym.Env):
         self.reset()
         total_rew = 0
         rewards_by_episode = []
-        fig1, ax1 = plt.subplots()
+        fig1, ax1 = plt.subplots(1,1)
 
         if allowed_collisions is not None:  # we can change the number of allowed collisions also in this method
             self.num_of_allowed_collisions = allowed_collisions
@@ -354,12 +354,12 @@ if __name__ == "__main__":
         initial_position = posicion inicial de despliegue
         seed = semilla del mapa. Determina el mapa inicial.
         random_information = determina si al hacer reset cambiamos el mapa. Si es False, al hacer reset volvemos al mismo
-        mapa inicial determinado por la semilla.
+        mapa inicial determinado por la seqmilla.
         num_of_kilometers = determina el numero de kilómetros máximos que hace el dron. 
         Se traduce en movimientos. 30km ~> 100 movs)
          
         """
-
+    plt.switch_backend('TkAgg')
     my_map = np.genfromtxt('../Environment/example_map.csv', delimiter=',')
     env = DiscreteIPP(scenario_map=my_map,
                       detection_length=2,
@@ -368,10 +368,12 @@ if __name__ == "__main__":
                       random_information=True,
                       num_of_kilometers=120,
                       collisions_allowed=True,
-                      num_of_allowed_collisions=8)
+                      num_of_allowed_collisions=8,
+                      recovery=0.03,
+                      attrition=0.05)
 
     s = env.reset()
-    Random_agent_mean_rewards = env.random_agent(6, 1)
+    Random_agent_mean_rewards = env.random_agent(6, 100000)
     np.savetxt('Random_agent_mean_rewards.csv', Random_agent_mean_rewards, delimiter= ' ')
     plt.figure()
     plt.plot(env.trajectory[:, 0], env.trajectory[:, 1])
