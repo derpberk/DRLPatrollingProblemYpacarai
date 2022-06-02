@@ -8,7 +8,7 @@ class DiscreteIPP(gym.Env):
 	environment_name = "Miopic Informative Path Planning"
 
 	def __init__(self, scenario_map, initial_position=None, battery_budget=100,
-	             detection_length=2, random_information=True, seed=0, num_of_kilometers=30, attrition=0, recovery=0.01,
+	             detection_length=2, random_information=True, seed=0, num_of_kilometers=30, attrition=0.05, recovery=0.03,
 				 collisions_allowed = False, num_of_allowed_collisions = 10):
 
 		self.id = "Miopic Discrete Ypacarai"
@@ -86,6 +86,7 @@ class DiscreteIPP(gym.Env):
 
 		self.place_information()
 
+		self.num_of_collisions = 0
 		self.battery = 100
 		self.reward = None
 		self.done = False
@@ -236,7 +237,7 @@ class DiscreteIPP(gym.Env):
 		self.information_importance = np.clip(self.information_importance - mask * self.information_importance, 0,1)
 
 		# The information map is decreased with the attrition factor
-		self.information_map = np.clip(self.information_map - mask * self.interest_permanent_loss_rate, 0, 1)
+		self.information_map = np.clip(self.information_map - mask * self.interest_permanent_loss_rate * self.gt.read(), 0, 1)
 
 		# State - Temporal Importance map and scenario #
 		state[2] = self.visited_map * self.information_map
