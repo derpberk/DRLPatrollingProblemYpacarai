@@ -11,11 +11,11 @@ class FeatureExtractor(nn.Module):
 
 		self.cnn = nn.Sequential(
 			nn.Conv2d(in_channels=obs_space_shape[0], out_channels=64, kernel_size=3, stride=1, padding=0),
-			nn.ReLU(),
+			nn.LeakyReLU(),
 			nn.Conv2d(in_channels=64, out_channels=32, kernel_size=3, stride=1, padding=0),
-			nn.ReLU(),
+			nn.LeakyReLU(),
 			nn.Conv2d(in_channels=32, out_channels=16, kernel_size=3, stride=1, padding=0),
-			nn.ReLU(),
+			nn.LeakyReLU(),
 			nn.Flatten()
 		)
 

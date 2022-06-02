@@ -23,7 +23,7 @@ class Network(nn.Module):
 		# set common feature layer
 		self.feature_layer = nn.Sequential(
 			nn.Linear(in_dim, 128),
-			nn.ReLU(),
+			nn.LeakyReLU(),
 		)
 
 		# set advantage layer
@@ -44,8 +44,8 @@ class Network(nn.Module):
 	def dist(self, x: torch.Tensor) -> torch.Tensor:
 		"""Get distribution for atoms."""
 		feature = self.feature_layer(x)
-		adv_hid = F.relu(self.advantage_hidden_layer(feature))
-		val_hid = F.relu(self.value_hidden_layer(feature))
+		adv_hid = F.leaky_relu(self.advantage_hidden_layer(feature))
+		val_hid = F.leaky_relu(self.value_hidden_layer(feature))
 
 		advantage = self.advantage_layer(adv_hid).view(
 			-1, self.out_dim, self.atom_size
@@ -84,11 +84,11 @@ class DuelingVisualNetwork(nn.Module):
 		self.feature_layer = nn.Sequential(
 			feature_extractor,
 			nn.Linear(number_of_features, 256),
-			nn.ReLU(),
+			nn.LeakyReLU(),
 			nn.Linear(256, 256),
-			nn.ReLU(),
+			nn.LeakyReLU(),
 			nn.Linear(256, 256),
-			nn.ReLU(),
+			nn.LeakyReLU(),
 		)
 
 		# set advantage layer
@@ -103,8 +103,8 @@ class DuelingVisualNetwork(nn.Module):
 		"""Forward method implementation."""
 		feature = self.feature_layer(x)
 
-		adv_hid = F.relu(self.advantage_hidden_layer(feature))
-		val_hid = F.relu(self.value_hidden_layer(feature))
+		adv_hid = F.leaky_relu(self.advantage_hidden_layer(feature))
+		val_hid = F.leaky_relu(self.value_hidden_layer(feature))
 
 		value = self.value_layer(val_hid)
 		advantage = self.advantage_layer(adv_hid)
@@ -145,12 +145,12 @@ class NoisyDuelingVisualNetwork(nn.Module):
 	def forward(self, x: torch.Tensor) -> torch.Tensor:
 		"""Forward method implementation."""
 		feature = self.feature_layer(x)
-		feature = F.relu(self.common_layer_1(feature))
-		feature = F.relu(self.common_layer_2(feature))
-		feature = F.relu(self.common_layer_3(feature))
+		feature = F.leaky_relu(self.common_layer_1(feature))
+		feature = F.leaky_relu(self.common_layer_2(feature))
+		feature = F.leaky_relu(self.common_layer_3(feature))
 
-		adv_hid = F.relu(self.advantage_hidden_layer(feature))
-		val_hid = F.relu(self.value_hidden_layer(feature))
+		adv_hid = F.leaky_relu(self.advantage_hidden_layer(feature))
+		val_hid = F.leaky_relu(self.value_hidden_layer(feature))
 
 		value = self.value_layer(val_hid)
 		advantage = self.advantage_layer(adv_hid)
