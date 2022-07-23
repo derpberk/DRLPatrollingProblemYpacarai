@@ -32,6 +32,7 @@ class DuelingDQNAgent:
             # NN parameters
             number_of_features: int = 1024,
             noisy: bool = False,
+            max_pool: bool = False,
             logdir=None,
             log_name: str = "Experiment",
             train_every: int = 1,
@@ -97,11 +98,11 @@ class DuelingDQNAgent:
 
         """ Create the DQN and the DQN-Target (noisy if selected) """
         if self.noisy:
-            self.dqn = NoisyDuelingVisualNetwork(obs_dim, action_dim, number_of_features).to(self.device)
-            self.dqn_target = NoisyDuelingVisualNetwork(obs_dim, action_dim, number_of_features).to(self.device)
+            self.dqn = NoisyDuelingVisualNetwork(obs_dim, action_dim, number_of_features, max_pool=max_pool).to(self.device)
+            self.dqn_target = NoisyDuelingVisualNetwork(obs_dim, action_dim, number_of_features, max_pool=max_pool).to(self.device)
         else:
-            self.dqn = DuelingVisualNetwork(obs_dim, action_dim, number_of_features).to(self.device)
-            self.dqn_target = DuelingVisualNetwork(obs_dim, action_dim, number_of_features).to(self.device)
+            self.dqn = DuelingVisualNetwork(obs_dim, action_dim, number_of_features, max_pool=max_pool).to(self.device)
+            self.dqn_target = DuelingVisualNetwork(obs_dim, action_dim, number_of_features, max_pool=max_pool).to(self.device)
 
         self.dqn_target.load_state_dict(self.dqn.state_dict())
         self.dqn_target.eval()
@@ -379,3 +380,34 @@ class DuelingDQNAgent:
     def save_model(self, name='experiment.pth'):
 
         torch.save(self.dqn.state_dict(), self.writer.log_dir + '/' + name)
+
+    def evaluate(self, episodes, path_to_file):
+        """ Evaluate the agent. """
+
+        # Agent in evaluation mode #
+        self.is_eval = True
+        # Reset metrics #
+        episodic_reward_vector = np.zeros(episodes)
+
+        self.dqn.load_state_dict(torch.load(path_to_file, map_location=self.device))
+
+        for episode in range(1, int(episodes) + 1):
+
+            done = False
+            state = self.env.reset()
+            score = 0
+            # Run an episode #
+            while not done:
+                # Select the action using the current policy
+                action = self.dqn(torch.FloatTensor(state).unsqueeze(0).to(self.device)).argmax()
+                action = action.detach().cpu().numpy()
+
+                state, reward, done = self.step(action)
+                score += reward
+                self.env.render()
+                # Compute average metrics #
+                episodic_reward = score
+
+            episodic_reward_vector[episode-1] = episodic_reward
+
+        return episodic_reward_vector  # NUEVO

@@ -2,7 +2,7 @@ from DeepAgent.NoisyLayers.layers import NoisyLinear
 import torch
 from torch import nn
 import torch.nn.functional as F
-from DeepAgent.Networks.FeatureExtractors import FeatureExtractor
+from DeepAgent.Networks.FeatureExtractors import FeatureExtractor, FeatureExtractorWithMaxPool
 
 
 class Network(nn.Module):
@@ -72,6 +72,7 @@ class DuelingVisualNetwork(nn.Module):
 			in_dim: tuple,
 			out_dim: int,
 			number_of_features: int,
+			max_pool: bool,
 	):
 		"""Initialization."""
 		super(DuelingVisualNetwork, self).__init__()
@@ -79,7 +80,12 @@ class DuelingVisualNetwork(nn.Module):
 		self.out_dim = out_dim
 
 		# set common feature layer
-		feature_extractor = FeatureExtractor(in_dim, number_of_features)
+		if max_pool is True:
+			feature_extractor = nn.Sequential(
+				FeatureExtractorWithMaxPool(in_dim, number_of_features))
+		else:
+			feature_extractor = nn.Sequential(
+				FeatureExtractor(in_dim, number_of_features))
 
 		self.feature_layer = nn.Sequential(
 			feature_extractor,
@@ -120,6 +126,7 @@ class NoisyDuelingVisualNetwork(nn.Module):
 			in_dim: tuple,
 			out_dim: int,
 			number_of_features: int,
+			max_pool: bool,
 	):
 		"""Initialization."""
 		super(NoisyDuelingVisualNetwork, self).__init__()
@@ -127,8 +134,12 @@ class NoisyDuelingVisualNetwork(nn.Module):
 		self.out_dim = out_dim
 
 		# set common feature layer
-		self.feature_layer = nn.Sequential(
-			FeatureExtractor(in_dim, number_of_features))
+		if max_pool is True:
+			self.feature_layer = nn.Sequential(
+				FeatureExtractorWithMaxPool(in_dim, number_of_features))
+		else:
+			self.feature_layer = nn.Sequential(
+				FeatureExtractor(in_dim, number_of_features))
 
 		self.common_layer_1 = NoisyLinear(number_of_features, 256)
 		self.common_layer_2 = NoisyLinear(256, 256)

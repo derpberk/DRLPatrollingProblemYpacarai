@@ -1,7 +1,9 @@
 from Environment.Miopic_IPP_Ypacarai import DiscreteIPP as Miopic_IPP
+from Environment.Soft_IPP_Ypacarai import DiscreteIPP as Soft_IPP
 from DeepAgent.Agent.DuelingDQNAgent import DuelingDQNAgent
 import numpy as np
 import matplotlib.pyplot as plt
+
 
 # Load the navigation map #
 navigation_map = np.genfromtxt('Environment/example_map.csv', delimiter=',')
@@ -11,11 +13,17 @@ batch_size = 64
 experience_replay_size = 100000
 target_update = 1000
 num_of_episodes = 20000
+num_of_episodes_for_evaluation = 25
 
-discovery_rewards = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1]
-
-for discovery_reward in discovery_rewards:
+### Para cada entrenamiento cambiar la carpeta runs/MiopicYpacaraiExperiment o en su caso la variable env###
+episodes = np.arange(2000, num_of_episodes + 1, 2000)
+paths_to_file = ['runs/MiopicYpacaraiExperiment/Policy_Episode_' + str(i)+'.pth' for i in episodes]
+paths_to_file.append('runs/MiopicYpacaraiExperiment/BestPolicy.pth')
+mean_reward_vector = np.zeros(len(paths_to_file))
+std_reward_vector = np.zeros(len(paths_to_file))
+for i, path_to_file in enumerate(paths_to_file):
     # Create the environment #
+
     env = Miopic_IPP(scenario_map=navigation_map,
                      initial_position=np.array([26, 21]),
                      battery_budget=100,
@@ -27,9 +35,9 @@ for discovery_reward in discovery_rewards:
                      attrition=0.05,
                      collisions_allowed=True,
                      num_of_allowed_collisions=20,
-                     discovery_reward=discovery_reward
+                     discovery_reward=0
                      )
-
+   
     # Reset the environment
     env.reset()
     done = False
@@ -46,25 +54,19 @@ for discovery_reward in discovery_rewards:
                             train_every=15,
                             save_every=num_of_episodes // 10)
 
-    losses, episodic_reward_vector = Agent.train(num_of_episodes)
-
-
+    reward_vector = Agent.evaluate(num_of_episodes_for_evaluation, path_to_file)
+    mean_reward_vector[i] = np.mean(reward_vector)
+    std_reward_vector[i] = np.std(reward_vector)
 """
-# Choose a valid action #
-action = env.action_space.sample()
-while not env.check_action(action):
-    action = env.action_space.sample()
-
-while not done:
-
-    # Random actions until done #
-    next_state, reward, done, _ = env.step(action)
-
-    if not env.check_action(action):
-        action = env.action_space.sample()
-        while not env.check_action(action):
-            action = env.action_space.sample()
-
-    env.render()
-    plt.pause(0.1)
+mean_reward_vector = np.asarray([-20.603, -18.55477503, -17.69250267,-15.29503493, -10.55477503])
+std_reward_vector = np.asarray([0.603, 1.55477503, 2.69250267,0.29503493, 0.55477503])
+episodes = np.arange(2000, 10000 + 1, 2000)
 """
+fig = plt.figure()
+plt.plot(episodes, mean_reward_vector, color='b')
+plt.title('Evolution of the training')
+plt.ylabel('Means of the reward')
+plt.xlabel('Episodes')
+plt.fill_between(episodes, mean_reward_vector + std_reward_vector,
+                 mean_reward_vector - std_reward_vector, color='lightblue')
+fig.savefig('means_and_std.pdf',format = 'pdf')

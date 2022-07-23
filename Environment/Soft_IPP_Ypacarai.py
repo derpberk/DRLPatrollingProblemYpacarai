@@ -2,7 +2,7 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 from Environment.groundtruthgenerator import GroundTruth
-from Environment.utils import custom_filters, plot_trajectory
+from Environment.utils import random_agent
 
 
 class DiscreteIPP(gym.Env):
@@ -286,11 +286,11 @@ class DiscreteIPP(gym.Env):
             if d:
                 break
 
-        return R,
-
+        return R
+    """
     def random_agent(self, num_of_episodes, allowed_collisions=None):
 
-        """ Reset the environment """
+        ### Reset the environment ###
         self.reset()
         total_rew = 0
         rewards_by_episode = []
@@ -316,7 +316,7 @@ class DiscreteIPP(gym.Env):
             plot_trajectory(ax1, self.trajectory[:, 0], self.trajectory[:, 1], num_of_points = 100, plot_waypoints=True)
 
         return rewards_by_episode
-
+"""
     def show_trajectory(self):
 
         plt.ion()
@@ -373,7 +373,7 @@ if __name__ == "__main__":
                       attrition=0.05)
 
     s = env.reset()
-    Random_agent_mean_rewards = env.random_agent(6, 100000)
+    Random_agent_mean_rewards = random_agent(env, 100000, directional=True)
     np.savetxt('Random_agent_mean_rewards.csv', Random_agent_mean_rewards, delimiter= ' ')
     plt.figure()
     plt.plot(env.trajectory[:, 0], env.trajectory[:, 1])

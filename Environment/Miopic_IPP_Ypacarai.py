@@ -2,6 +2,7 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 from Environment.groundtruthgenerator import GroundTruth
+from Environment.utils import random_agent
 
 class DiscreteIPP(gym.Env):
 
@@ -9,7 +10,7 @@ class DiscreteIPP(gym.Env):
 
 	def __init__(self, scenario_map, initial_position=None, battery_budget=100,
 	             detection_length=2, random_information=True, seed=0, num_of_kilometers=30, attrition=0.05, recovery=0.03,
-				 collisions_allowed = False, num_of_allowed_collisions = 10):
+				 collisions_allowed = False, num_of_allowed_collisions = 10, discovery_reward = 0.8):
 
 		self.id = "Miopic Discrete Ypacarai"
 
@@ -29,6 +30,9 @@ class DiscreteIPP(gym.Env):
 		self.visited_map = None
 		self.idleness_mean = None  # the average idleness value of each box
 		self.percentage_visited = None  # percentage of the map visited
+		self.new_visited_area = None
+		self.discovery_reward = discovery_reward
+		self.reward_proportion = []
 
 
 		""" Action spaces for gym convenience """
@@ -173,6 +177,15 @@ class DiscreteIPP(gym.Env):
 
 		# Check the episodic end condition
 		self.done = self.battery <= self.battery_cost or done_due_to_collisions
+		"""
+		if self.done:
+			plt.figure(3)
+			plt.plot(self.reward_proportion)
+			self.reward_proportion = []
+			print(self.discovery_reward)
+			self.discovery_reward *= 0.5
+			plt.show()
+		"""
 
 		return self.state, self.reward, self.done, {}
 
@@ -195,6 +208,20 @@ class DiscreteIPP(gym.Env):
 		if collision_free:
 			sum_of_information = np.sum(coverage_area * self.information_map * self.information_importance)
 			reward = sum_of_information / (self.detection_length ** 2 * np.pi)
+		else:
+			reward = -self.collision_penalization
+
+		return reward
+
+	def reward_function_with_discovery(self, collision_free, coverage_area):
+
+		if collision_free:
+			sum_of_information = np.sum(coverage_area * self.information_map * self.information_importance)
+			sum_of_information = sum_of_information / (self.detection_length ** 2 * np.pi)
+			new_visited_area = np.sum(self.new_visited_area) / (self.detection_length ** 2 * np.pi)
+			reward = sum_of_information + new_visited_area * self.discovery_reward
+			if new_visited_area > 0:
+				self.reward_proportion.append((new_visited_area * self.discovery_reward)/sum_of_information)
 		else:
 			reward = -self.collision_penalization
 
@@ -225,12 +252,14 @@ class DiscreteIPP(gym.Env):
 
 		if self.visited_map is None:
 			self.visited_map = np.copy(mask)
+			self.new_visited_area = mask * np.copy(self.scenario_map)
 		else:
-			self.visited_map = np.clip(self.visited_map + mask,0,1)
+			self.new_visited_area = np.clip(mask - self.visited_map, 0, 1) * np.copy(self.scenario_map)
+			self.visited_map = np.clip(self.visited_map + mask, 0, 1)
 
 		# Reward function #
-
-		reward = self.reward_function(collision_free=valid, coverage_area=mask)
+		#reward = self.reward_function(collision_free=valid, coverage_area=mask)
+		reward = self.reward_function_with_discovery(collision_free=valid, coverage_area=mask)
 
 		# Update the information map
 		# Redraw the importance in the covered area #
@@ -289,31 +318,6 @@ class DiscreteIPP(gym.Env):
 
 		return R,
 
-	def random_agent(self, num_of_episodes, allowed_collisions=None):
-		""" Reset the environment """
-		self.reset()
-		total_rew = 0
-		rewards_by_episode = []
-
-		if allowed_collisions is not None:  # we can change the number of allowed collisions also in this method
-			self.num_of_allowed_collisions = allowed_collisions
-
-		for episode in range(num_of_episodes):
-			self.reset()
-			while not self.done:
-				a_ = np.random.randint(0, 7)
-
-				s_, r_, d_, _ = env.step(a_)
-				total_rew += r_
-				self.render()
-				self.show_trajectory()
-				plt.pause(0.1)
-
-			rewards_by_episode.append(total_rew)
-			total_rew = 0
-
-		return rewards_by_episode
-
 	def show_trajectory(self):
 		plt.ion()
 
@@ -358,15 +362,22 @@ if __name__ == "__main__":
 		"""
 
 	my_map = np.genfromtxt('../Environment/example_map.csv', delimiter=',')
+
+	# Create the environment #
 	env = DiscreteIPP(scenario_map=my_map,
-	                  detection_length=2,
-	                  initial_position=np.array([26, 21]),
-	                  seed=1,
-	                  random_information=False,
-	                  num_of_kilometers=120)
-
+					 initial_position=np.array([26, 21]),
+					 battery_budget=100,
+					 detection_length=2,
+					 random_information=False, # True
+					 seed=1,
+					 num_of_kilometers=100,
+					 recovery=0.03,
+					 attrition=0.05,
+					 collisions_allowed=True,
+					 num_of_allowed_collisions=20,
+					 )
 	s = env.reset()
-
+	Random_agent_mean_rewards = random_agent(env, 5, directional=False)
 	total_r = 0
 	t = 0
 	R_vec = [total_r]

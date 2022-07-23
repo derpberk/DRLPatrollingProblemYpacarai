@@ -78,3 +78,66 @@ def plot_trajectory(ax, x, y, z=None, colormap = 'jet', num_of_points = None, li
             ax.plot(x,y,'kx')
 
     ax.plot()
+
+
+def random_agent(env, num_of_episodes, directional = False):
+    """ Reset the environment """
+    env.reset()
+    total_rew = 0
+    rewards_by_episode = []
+
+    for episode in range(num_of_episodes):
+        print(episode)
+        state = env.reset()
+        position = np.unravel_index(np.argmax(state[0], axis=None), state[0].shape)
+        last_position = position
+        action = env.action_space.sample()
+        while not env.done:
+
+            # Choose a valid action #
+            if not directional:
+                action = env.action_space.sample()
+            val, attempted_position = env.check_action(action)
+            valid = val and not np.array_equiv(attempted_position, last_position) if directional else val
+            while not valid:
+                action = env.action_space.sample()
+                val, attempted_position = env.check_action(action)
+                valid = val and not np.array_equiv(attempted_position, last_position) if directional else val
+
+            #print(action)
+            last_position = position
+            # Random actions until done #
+            next_state, reward, done, _ = env.step(action)
+
+            total_rew = total_rew + 1
+            if directional:
+                position = np.unravel_index(np.argmax(next_state[0], axis=None), next_state[0].shape)
+
+            env.render()
+            plt.pause(0.1)
+
+        rewards_by_episode.append(total_rew)
+        total_rew = 0
+
+    return rewards_by_episode
+
+"""
+# Choose a valid action #
+action = env.action_space.sample()
+while not env.check_action(action):
+    action = env.action_space.sample()
+
+while not done:
+
+    # Random actions until done #
+    next_state, reward, done, _ = env.step(action)
+
+    action = env.action_space.sample()
+    if not env.check_action(action):
+        action = env.action_space.sample()
+        while not env.check_action(action):
+            action = env.action_space.sample()
+
+    env.render()
+    plt.pause(0.1)
+"""
