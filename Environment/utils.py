@@ -121,6 +121,48 @@ def random_agent(env, num_of_episodes, directional = False):
 
     return rewards_by_episode
 
+def random_agent_lawnmower(env):
+    """ Reset the environment """
+    env.initial_position = [24, 2]
+    env.reset()
+    up = 0
+    right = 1
+    down = 2
+    left = 3
+    right_up = 4
+    right_down = 5
+    left_down = 6
+    actions = [right_up, right, right_down, down, left_down]
+    env.initial_position = [24,2]
+    aux = 0
+    action = up
+    while True:
+        val, attempted_position = env.check_action(action)
+        if not val:
+            for a in actions:
+                aux += 1
+                val, attempted_position = env.check_action(a)
+                if val:
+                    if a == left_down:
+                        next_state, reward, done, _ = env.step(a)
+                    else:
+                        next_state, reward, done, _ = env.step(a)
+                        if action == up:
+                            action = down
+                            val, attempted_position = env.check_action(action)
+                        elif action == down:
+                            action = up
+                            val, attempted_position = env.check_action(action)
+                        if val:
+                            next_state, reward, done, _ = env.step(action)
+                    break
+        else:
+            next_state, reward, done, _ = env.step(action)
+
+        env.render()
+        plt.pause(0.1)
+
+    return
 """
 # Choose a valid action #
 action = env.action_space.sample()

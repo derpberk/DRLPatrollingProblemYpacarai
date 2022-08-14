@@ -2,7 +2,7 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 from Environment.groundtruthgenerator import GroundTruth
-from Environment.utils import random_agent
+from Environment.utils import random_agent, random_agent_lawnmower
 
 class DiscreteIPP(gym.Env):
 
@@ -28,7 +28,7 @@ class DiscreteIPP(gym.Env):
 		self.information_map = None
 		self.information_importance = None
 		self.visited_map = None
-		self.idleness_mean = None  # the average idleness value of each box
+		self.idleness_mean = None  # the average idleness value
 		self.percentage_visited = None  # percentage of the map visited
 		self.new_visited_area = None
 		self.discovery_reward = discovery_reward
@@ -97,6 +97,7 @@ class DiscreteIPP(gym.Env):
 		self.next_state = None
 		self.step_count = 0
 		self.visited_map = None
+		self.reward_proportion = []
 		self.state, self.reward = self.process_state_and_reward()
 
 		return self.state
@@ -377,7 +378,8 @@ if __name__ == "__main__":
 					 num_of_allowed_collisions=20,
 					 )
 	s = env.reset()
-	Random_agent_mean_rewards = random_agent(env, 5, directional=False)
+	Random_agent_mean_rewards = random_agent_lawnmower(env)
+	Random_agent_mean_rewards = random_agent(env, 5, directional=True)
 	total_r = 0
 	t = 0
 	R_vec = [total_r]

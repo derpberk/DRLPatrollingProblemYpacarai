@@ -43,8 +43,9 @@ for discovery_reward in discovery_rewards:
                             gamma=0.99,
                             lr=1e-4,
                             max_pool=True,
+                            logdir='runs/Discovery_reward_'+str(discovery_reward),
                             train_every=15,
-                            save_every=num_of_episodes // 10)
+                            save_every=0) #save_every=num_of_episodes // 10)
 
     losses, episodic_reward_vector = Agent.train(num_of_episodes)
 
