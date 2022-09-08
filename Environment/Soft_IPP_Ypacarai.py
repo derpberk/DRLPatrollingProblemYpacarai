@@ -28,6 +28,9 @@ class DiscreteIPP(gym.Env):
         self.information_map = None
         self.information_importance = None
         self.visited_map = None
+        # metrics of interest
+        self.sum_of_interest = 0
+        self.min_idleness_mean = np.inf
         self.idleness_mean = None  # the average idleness value of each box
         self.percentage_visited = None  # percentage of the map visited
 
@@ -95,7 +98,13 @@ class DiscreteIPP(gym.Env):
         self.done = False
         self.next_state = None
         self.step_count = 0
+
         self.visited_map = None
+        self.sum_of_interest = 0
+        self.min_idleness_mean = np.inf
+        self.idleness_mean = None  # the average idleness value of each box
+        self.percentage_visited = None  # percentage of the map visited
+
         self.state, self.reward = self.process_state_and_reward()
 
         return self.state
@@ -231,7 +240,8 @@ class DiscreteIPP(gym.Env):
         # Reward function #
 
         reward = self.reward_function(collision_free=valid, coverage_area=mask)
-
+        if reward != -self.collision_penalization:
+            self.sum_of_interest = self.sum_of_interest + np.sum(mask * self.information_map * self.information_importance)
         # Update the information map
 
         # Redraw the importance in the covered area #
@@ -246,6 +256,9 @@ class DiscreteIPP(gym.Env):
         self.information_importance = np.clip(self.information_importance + self.recovery_rate, 0, 1)
 
         self.idleness_mean = np.sum(state[2])/np.count_nonzero(self.scenario_map)
+        if self.idleness_mean < self.min_idleness_mean:
+            self.min_idleness_mean = self.idleness_mean
+
         self.percentage_visited = np.count_nonzero(self.visited_map)/np.count_nonzero(self.scenario_map)
         # print('Soft_Ypacarai', self.percentage_visited, self.idleness_mean)
 

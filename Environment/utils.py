@@ -56,8 +56,9 @@ class custom_filters():
 def plot_trajectory(ax, x, y, z=None, colormap = 'jet', num_of_points = None, linewidth = 1, k = 3, plot_waypoints=False, markersize = 0.5):
 
     if z is None:
-        tck,u = interpolate.splprep([x,y],s=0.0, k=k)
-        x_i,y_i= interpolate.splev(np.linspace(0,1,num_of_points),tck)
+        #tck,u = interpolate.splprep([x,y],s=0.0, k=k)
+        #x_i,y_i= interpolate.splev(np.linspace(0,1,num_of_points),tck)
+        x_i,y_i= [x,y]
         points = np.array([x_i,y_i]).T.reshape(-1,1,2)
         segments = np.concatenate([points[:-2], points[1:-1], points[2:]], axis=1)
         lc = LineCollection(segments, norm = plt.Normalize(0, 1),cmap=plt.get_cmap(colormap), linewidth=linewidth)

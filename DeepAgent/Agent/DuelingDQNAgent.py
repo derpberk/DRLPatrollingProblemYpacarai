@@ -8,6 +8,9 @@ from DeepAgent.ReplayBuffers.ReplayBuffers import PrioritizedReplayBuffer, Repla
 from DeepAgent.Networks.network import DuelingVisualNetwork, NoisyDuelingVisualNetwork
 import torch.nn.functional as F
 
+import matplotlib.pyplot as plt
+from Environment.utils import plot_trajectory as ptrajectory
+
 
 class DuelingDQNAgent:
 
@@ -381,13 +384,17 @@ class DuelingDQNAgent:
 
         torch.save(self.dqn.state_dict(), self.writer.log_dir + '/' + name)
 
-    def evaluate(self, episodes, path_to_file):
+    def evaluate(self, episodes, path_to_file, save_trajectory = None):
         """ Evaluate the agent. """
 
         # Agent in evaluation mode #
         self.is_eval = True
         # Reset metrics #
         episodic_reward_vector = np.zeros(episodes)
+        sum_of_interest = np.zeros(episodes)
+        min_idleness_mean = np.zeros(episodes)
+        idleness_mean = np.zeros(episodes)
+        percentage_visited = np.zeros(episodes)
 
         self.dqn.load_state_dict(torch.load(path_to_file, map_location=self.device))
 
@@ -398,16 +405,32 @@ class DuelingDQNAgent:
             score = 0
             # Run an episode #
             while not done:
-                # Select the action using the current policy
+                # Select the action
                 action = self.dqn(torch.FloatTensor(state).unsqueeze(0).to(self.device)).argmax()
                 action = action.detach().cpu().numpy()
 
                 state, reward, done = self.step(action)
                 score += reward
-                self.env.render()
+                #self.env.render()
                 # Compute average metrics #
                 episodic_reward = score
 
+            if save_trajectory is not None and int(episodes/2):
+                fig1, ax1 = plt.subplots(1, 1)
+                #ax1.plot(self.env.trajectory[:, 0], self.env.trajectory[:, 1], '.', color='black', markersize=0.5)
+                ax1.imshow(state[2], cmap='jet', vmin=0, vmax=1)
+                ptrajectory(ax1, self.env.trajectory[:, 1], self.env.trajectory[:, 0], num_of_points=100, plot_waypoints=True)
+                #plt.plot(episodes, mean_reward_vector, color='b')
+                plt.title('Trayectoria')
+                fig1.savefig('traj100ep'+str(save_trajectory)+'.pdf',format = 'pdf')
+                plt.close('all')
+
+                pass
+
+            sum_of_interest[episode-1] = self.env.sum_of_interest
+            min_idleness_mean[episode-1] = self.env.min_idleness_mean
+            idleness_mean[episode-1] = self.env.idleness_mean
+            percentage_visited[episode-1] = self.env.percentage_visited
             episodic_reward_vector[episode-1] = episodic_reward
 
-        return episodic_reward_vector  # NUEVO
+        return episodic_reward_vector, sum_of_interest, min_idleness_mean, idleness_mean, percentage_visited  # NUEVO

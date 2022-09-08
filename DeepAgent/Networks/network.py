@@ -88,7 +88,8 @@ class DuelingVisualNetwork(nn.Module):
 				FeatureExtractor(in_dim, number_of_features))
 
 		self.feature_layer = nn.Sequential(
-			feature_extractor,
+			#feature_extractor,
+			FeatureExtractor(in_dim, number_of_features),
 			nn.Linear(number_of_features, 256),
 			nn.LeakyReLU(),
 			nn.Linear(256, 256),
