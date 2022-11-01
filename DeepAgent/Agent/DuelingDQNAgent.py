@@ -391,10 +391,12 @@ class DuelingDQNAgent:
         self.is_eval = True
         # Reset metrics #
         episodic_reward_vector = np.zeros(episodes)
+        exploration_reward_vector = np.zeros(episodes)
         sum_of_interest = np.zeros(episodes)
         min_idleness_mean = np.zeros(episodes)
         idleness_mean = np.zeros(episodes)
         percentage_visited = np.zeros(episodes)
+        step_count_vector = np.zeros(episodes)
 
         self.dqn.load_state_dict(torch.load(path_to_file, map_location=self.device))
 
@@ -432,5 +434,7 @@ class DuelingDQNAgent:
             idleness_mean[episode-1] = self.env.idleness_mean
             percentage_visited[episode-1] = self.env.percentage_visited
             episodic_reward_vector[episode-1] = episodic_reward
+            exploration_reward_vector[episode-1] = self.env.exploration_reward
+            step_count_vector[episode-1] = self.env.step_count
 
-        return episodic_reward_vector, sum_of_interest, min_idleness_mean, idleness_mean, percentage_visited  # NUEVO
+        return episodic_reward_vector, sum_of_interest, min_idleness_mean, idleness_mean, percentage_visited, exploration_reward_vector, step_count_vector  # NUEVO

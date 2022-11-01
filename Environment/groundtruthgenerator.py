@@ -87,6 +87,7 @@ class GroundTruth(object):
 
         """ Show the ground truth """
         plt.imshow(self.read(), cmap='inferno', interpolation='none')
+        plt.colorbar()
         cs = plt.contour(self.read(), colors='royalblue', alpha=1, linewidths=1)
         plt.clabel(cs, inline=1, fontsize=7)
         plt.title("Nº of peaks: {}".format(gt.number_of_peaks), color='black', fontsize=10)
@@ -100,9 +101,9 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
     ypacarai_map = np.genfromtxt('example_map.csv',delimiter=',',dtype=float)
-    gt = GroundTruth(1-ypacarai_map, 1, max_number_of_peaks=3, is_bounded=True)
+    gt = GroundTruth(1-ypacarai_map, 1, max_number_of_peaks=5, is_bounded=True)
 
-    for i in range(1):
+    for i in range(3):
         gt.reset()
         gt.render()
 

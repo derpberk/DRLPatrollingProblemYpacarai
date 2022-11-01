@@ -2,7 +2,7 @@ import gym
 import numpy as np
 import matplotlib.pyplot as plt
 from Environment.groundtruthgenerator import GroundTruth
-from Environment.utils import random_agent
+from Environment.utils import random_agent, put_kernel_in_map
 
 
 class DiscreteIPP(gym.Env):
@@ -127,7 +127,16 @@ class DiscreteIPP(gym.Env):
             self.information_map = self.gt.read()
         else:
             self.information_map = np.copy(self.fixed_gt)
-
+        """
+        ################### TESTS: Add a Gaussian distribution peak at the position pos.
+        pos = [45, 25]
+        s, k = 2.5, 11  # generate a (2k+1)x(2k+1) gaussian kernel with mean=0 and sigma = s
+        mask = put_kernel_in_map(self.scenario_map.shape, pos, s, k)
+        self.information_map = np.clip(self.information_map + mask, 0, 1) * self.scenario_map
+        
+        self.fixed_inf_map=self.information_map
+        ###################################
+        """
         self.information_importance = np.copy(self.scenario_map)
 
     def render(self, img_type='None'):
@@ -248,6 +257,7 @@ class DiscreteIPP(gym.Env):
         self.information_importance = np.clip(self.information_importance - mask * self.information_importance, 0, 1)
         # The information map is decreased with the attrition factor
         self.information_map = np.clip(self.information_map - mask * self.interest_permanent_loss_rate * self.gt.read(), 0, 1)
+        #self.information_map = np.clip(self.information_map - mask * self.interest_permanent_loss_rate * self.fixed_inf_map, 0, 1) #for when there is a gaussian peak
 
         # State - Relative Importance map #
         state[2] = self.information_map * self.information_importance

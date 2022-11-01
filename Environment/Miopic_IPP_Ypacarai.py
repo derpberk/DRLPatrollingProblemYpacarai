@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from Environment.groundtruthgenerator import GroundTruth
 from Environment.utils import random_agent, random_agent_lawnmower
+from Environment.utils import put_kernel_in_map
 
 class DiscreteIPP(gym.Env):
 
@@ -10,7 +11,7 @@ class DiscreteIPP(gym.Env):
 
 	def __init__(self, scenario_map, initial_position=None, battery_budget=100,
 	             detection_length=2, random_information=True, seed=0, num_of_kilometers=30, attrition=0.05, recovery=0.03,
-				 collisions_allowed = False, num_of_allowed_collisions = 10, discovery_reward = 0.8):
+				 collisions_allowed = False, num_of_allowed_collisions = 10, discovery_reward = None):
 
 		self.id = "Miopic Discrete Ypacarai"
 
@@ -28,11 +29,16 @@ class DiscreteIPP(gym.Env):
 		self.information_map = None
 		self.information_importance = None
 		self.visited_map = None
+
+		# metrics of interest
+		self.sum_of_interest = 0
+		self.min_idleness_mean = np.inf
 		self.idleness_mean = None  # the average idleness value
 		self.percentage_visited = None  # percentage of the map visited
 		self.new_visited_area = None
 		self.discovery_reward = discovery_reward
 		self.reward_proportion = []
+		self.exploration_reward = 0
 
 
 		""" Action spaces for gym convenience """
@@ -98,6 +104,11 @@ class DiscreteIPP(gym.Env):
 		self.step_count = 0
 		self.visited_map = None
 		self.reward_proportion = []
+		self.sum_of_interest = 0
+		self.min_idleness_mean = np.inf
+		self.idleness_mean = None  # the average idleness value of each box
+		self.percentage_visited = None  # percentage of the map visited
+		self.exploration_reward = 0
 		self.state, self.reward = self.process_state_and_reward()
 
 		return self.state
@@ -120,6 +131,15 @@ class DiscreteIPP(gym.Env):
 			self.information_map = self.gt.read()
 		else:
 			self.information_map = np.copy(self.fixed_gt)
+		"""
+		################### TESTS: Add a Gaussian distribution peak at the position pos.
+		pos = [45, 25]
+		s, k = 2.5, 11  # generate a (2k+1)x(2k+1) gaussian kernel with mean=0 and sigma = s
+		mask = put_kernel_in_map(self.scenario_map.shape, pos, s, k)
+		self.information_map = np.clip(self.information_map + mask, 0, 1) * self.scenario_map
+		self.fixed_inf_map = self.information_map
+		###################################
+		"""
 
 		self.information_importance = np.ones_like(self.scenario_map)
 
@@ -223,6 +243,7 @@ class DiscreteIPP(gym.Env):
 			reward = sum_of_information + new_visited_area * self.discovery_reward
 			if new_visited_area > 0:
 				self.reward_proportion.append((new_visited_area * self.discovery_reward)/sum_of_information)
+			self.exploration_reward = new_visited_area * self.discovery_reward
 		else:
 			reward = -self.collision_penalization
 
@@ -259,15 +280,20 @@ class DiscreteIPP(gym.Env):
 			self.visited_map = np.clip(self.visited_map + mask, 0, 1)
 
 		# Reward function #
-		#reward = self.reward_function(collision_free=valid, coverage_area=mask)
-		reward = self.reward_function_with_discovery(collision_free=valid, coverage_area=mask)
-
+		if self.discovery_reward is None:
+			reward = self.reward_function(collision_free=valid, coverage_area=mask)
+		else:
+			reward = self.reward_function_with_discovery(collision_free=valid, coverage_area=mask)
+		if reward != -self.collision_penalization:
+			self.sum_of_interest = self.sum_of_interest + np.sum(
+				mask * self.information_map * self.information_importance)
 		# Update the information map
 		# Redraw the importance in the covered area #
 		self.information_importance = np.clip(self.information_importance - mask * self.information_importance, 0,1)
 
 		# The information map is decreased with the attrition factor
 		self.information_map = np.clip(self.information_map - mask * self.interest_permanent_loss_rate * self.gt.read(), 0, 1)
+		#self.information_map = np.clip(self.information_map - mask * self.interest_permanent_loss_rate * self.fixed_inf_map, 0, 1)#for when there is a gaussian peak
 
 		# State - Temporal Importance map and scenario #
 		state[2] = self.visited_map * self.information_map
@@ -276,7 +302,10 @@ class DiscreteIPP(gym.Env):
 		# Recover the idleness of the information #
 		self.information_importance = np.clip(self.information_importance + self.recovery_rate, 0, 1)
 
-		self.idleness_mean = np.sum(state[2]) / np.count_nonzero(self.scenario_map)
+		self.idleness_mean = np.sum(self.information_map*self.information_importance) / np.count_nonzero(self.scenario_map)
+		if self.idleness_mean < self.min_idleness_mean:
+			self.min_idleness_mean = self.idleness_mean
+
 		self.percentage_visited = np.count_nonzero(self.visited_map) / np.count_nonzero(self.scenario_map)
 		# print(self.percentage_visited, self.idleness_mean)
 
